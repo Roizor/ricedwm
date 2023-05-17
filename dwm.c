@@ -317,6 +317,7 @@ void clientmessage(XEvent *e)
 {
 	XClientMessageEvent *cme = &e->xclient;
 	Client *c = wintoclient(cme->window);
+	unsigned int i;
 
 	if (!c)
 		return;
@@ -328,8 +329,14 @@ void clientmessage(XEvent *e)
 	}
 	else if (cme->message_type == netatom[NetActiveWindow])
 	{
-		if (c != selmon->sel && !c->isurgent)
-			seturgent(c, 1);
+		for (i = 0; i < LENGTH(tags) && !((1 << i) & c->tags); i++);
+		if (i < LENGTH(tags)) {
+			const Arg a = {.ui = 1 << i};
+			selmon = c->mon;
+			view(&a);
+			focus(c);
+			restack(selmon);
+		}
 	}
 }
 
@@ -1438,7 +1445,12 @@ void setup(void)
 	XChangeWindowAttributes(dpy, root, CWEventMask | CWCursor, &wa);
 	XSelectInput(dpy, root, wa.event_mask);
 	grabkeys();
+	run_autostart();
 	focus(NULL);
+}
+
+void run_autostart() {
+	spawn(autostart_script);
 }
 
 void seturgent(Client *c, int urg)
