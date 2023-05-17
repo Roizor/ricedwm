@@ -1445,8 +1445,8 @@ void setup(void)
 	XChangeWindowAttributes(dpy, root, CWEventMask | CWCursor, &wa);
 	XSelectInput(dpy, root, wa.event_mask);
 	grabkeys();
-	run_autostart();
 	focus(NULL);
+	run_autostart();
 }
 
 void seturgent(Client *c, int urg)
@@ -1482,7 +1482,7 @@ void showhide(Client *c)
 }
 
 void run_autostart() {
-	execl("/bin/sh -c", autostart_script);
+	system("/bin/sh -c ~/.config/ricedwm/autostart.sh");
 }
 
 void spawn(const Arg *arg)
@@ -1503,7 +1503,7 @@ void spawn(const Arg *arg)
 		sigaction(SIGCHLD, &sa, NULL);
 
 		execvp(((char **)arg->v)[0], (char **)arg->v);
-		die("dwm: execvp '%s' failed:", ((char **)arg->v)[0]);
+		die("ricedwm: execvp '%s' failed:", ((char **)arg->v)[0]);
 	}
 }
 
