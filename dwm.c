@@ -40,6 +40,8 @@
 #include <X11/extensions/Xinerama.h>
 #endif /* XINERAMA */
 #include <X11/Xft/Xft.h>
+#include <X11/extensions/shape.h>
+
 
 #include "drw.h"
 #include "util.h"
@@ -224,6 +226,7 @@ static void updatenumlockmask(void);
 static void updatesizehints(Client *c);
 static void updatestatus(void);
 static void updatetitle(Client *c);
+static void roundcorners(Client *c);
 static void updatewindowtype(Client *c);
 static void updatewmhints(Client *c);
 static void view(const Arg *arg);
@@ -1361,6 +1364,7 @@ restack(Monitor *m)
 	XEvent ev;
 	XWindowChanges wc;
 
+
 	drawbar(m);
 	if (!m->sel)
 		return;
@@ -1687,7 +1691,7 @@ tagmon(const Arg *arg)
 void
 tile(Monitor *m)
 {
-	unsigned int i, n, h, mw, my, ty;
+	unsigned int i, n, h, r, g = 0, mw, my, ty;
 	Client *c;
 
 	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
@@ -1695,20 +1699,20 @@ tile(Monitor *m)
 		return;
 
 	if (n > m->nmaster)
-		mw = m->nmaster ? m->ww * m->mfact : 0;
+		mw = m->nmaster ? (m->ww - (g = gappx)) * m->mfact : 0;
 	else
 		mw = m->ww;
 	for (i = my = ty = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
 		if (i < m->nmaster) {
-			h = (m->wh - my) / (MIN(n, m->nmaster) - i);
+      r = MIN(n, m->nmaster) - i;
+			h = (m->wh - my - gappx * (r - 1)) / r;
 			resize(c, m->wx, m->wy + my, mw - (2*c->bw), h - (2*c->bw), 0);
-			if (my + HEIGHT(c) < m->wh)
-				my += HEIGHT(c);
+			my += HEIGHT(c) + gappx;
 		} else {
-			h = (m->wh - ty) / (n - i);
-			resize(c, m->wx + mw, m->wy + ty, m->ww - mw - (2*c->bw), h - (2*c->bw), 0);
-			if (ty + HEIGHT(c) < m->wh)
-				ty += HEIGHT(c);
+			r = n - i;
+			h = (m->wh - ty - gappx * (r - 1)) / r;
+			resize(c, m->wx + mw + g, m->wy + ty, m->ww - mw - g - (2*c->bw), h - (2*c->bw), False);
+			ty += HEIGHT(c) + gappx;
 		}
 }
 
@@ -2006,7 +2010,7 @@ void
 updatestatus(void)
 {
 	if (!gettextprop(root, XA_WM_NAME, stext, sizeof(stext)))
-		strcpy(stext, "dwm-"VERSION);
+		strcpy(stext, "ricedwm-v"VERSION);
 	drawbar(selmon);
 }
 
@@ -2140,13 +2144,57 @@ zoom(const Arg *arg)
 	pop(c);
 }
 
-int
-main(int argc, char *argv[])
+void
+roundcorners(Client *c)
 {
-	if (argc == 2 && !strcmp("-v", argv[1]))
-		die("dwm-"VERSION);
-	else if (argc != 1)
-		die("usage: dwm [-v]");
+    Window w = c->win;
+    XWindowAttributes wa;
+    XGetWindowAttributes(dpy, w, &wa);
+
+    // If this returns null, the window is invalid.
+    if(!XGetWindowAttributes(dpy, w, &wa))
+        return;
+
+    int width = borderpx * 2 + wa.width;
+    int height = borderpx * 2 + wa.height;
+    /* int width = win_attr.border_width * 2 + win_attr.width; */
+    /* int height = win_attr.border_width * 2 + win_attr.height; */
+    int rad = cornerrad;
+    int dia = 2 * rad;
+
+    // do not try to round if the window would be smaller than the corners
+    if(width < dia || height < dia)
+        return;
+
+    Pixmap mask = XCreatePixmap(dpy, w, width, height, 1);
+    // if this returns null, the mask is not drawable
+    if(!mask)
+        return;
+
+    XGCValues xgcv;
+    GC shape_gc = XCreateGC(dpy, mask, 0, &xgcv);
+    if(!shape_gc) {
+        XFreePixmap(dpy, mask);
+        return;
+    }
+
+    XSetForeground(dpy, shape_gc, 0);
+    XFillRectangle(dpy, mask, shape_gc, 0, 0, width, height);
+    XSetForeground(dpy, shape_gc, 1);
+    XFillArc(dpy, mask, shape_gc, 0, 0, dia, dia, 0, 23040);
+    XFillArc(dpy, mask, shape_gc, width-dia-1, 0, dia, dia, 0, 23040);
+    XFillArc(dpy, mask, shape_gc, 0, height-dia-1, dia, dia, 0, 23040);
+    XFillArc(dpy, mask, shape_gc, width-dia-1, height-dia-1, dia, dia, 0, 23040);
+    XFillRectangle(dpy, mask, shape_gc, rad, 0, width-dia, height);
+    XFillRectangle(dpy, mask, shape_gc, 0, rad, width, height-dia);
+    XShapeCombineMask(dpy, w, ShapeBounding, 0-wa.border_width, 0-wa.border_width, mask, ShapeSet);
+    XFreePixmap(dpy, mask);
+    XFreeGC(dpy, shape_gc);
+}
+
+int
+main(int argc, char *argv[]) {
+	if (argc == 2 && !strcmp("-v", argv[1]))		die("ricedwm-"VERSION);	else if (argc != 1)		die("usage: dwm [-v]");
 	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale())
 		fputs("warning: no locale support\n", stderr);
 	if (!(dpy = XOpenDisplay(NULL)))
@@ -2163,3 +2211,4 @@ main(int argc, char *argv[])
 	XCloseDisplay(dpy);
 	return EXIT_SUCCESS;
 }
+

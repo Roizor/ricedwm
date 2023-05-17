@@ -1,5 +1,5 @@
 # dwm version
-VERSION = 6.4
+VERSION = 1.1
 
 # Customize below to fit your system
 
@@ -15,7 +15,7 @@ XINERAMALIBS  = -lXinerama
 XINERAMAFLAGS = -DXINERAMA
 
 # freetype
-FREETYPELIBS = -lfontconfig -lXft
+FREETYPELIBS = -lfontconfig -lXft -lXext
 FREETYPEINC = /usr/include/freetype2
 # OpenBSD (uncomment)
 #FREETYPEINC = ${X11INC}/freetype2

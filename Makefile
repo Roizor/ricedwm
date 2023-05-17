@@ -5,7 +5,7 @@ include config.mk
 
 SRC = drw.c dwm.c util.c
 OBJ = ${SRC:.c=.o}
-
+ 
 all: options dwm
 
 options:
@@ -17,7 +17,7 @@ options:
 .c.o:
 	${CC} -c ${CFLAGS} $<
 
-${OBJ}: config.h config.mk
+${OBJ}:  config.h config.mk
 
 config.h:
 	cp config.def.h $@
