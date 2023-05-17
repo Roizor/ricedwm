@@ -1449,10 +1449,6 @@ void setup(void)
 	focus(NULL);
 }
 
-void run_autostart() {
-	spawn(autostart_script);
-}
-
 void seturgent(Client *c, int urg)
 {
 	XWMHints *wmh;
@@ -1483,6 +1479,10 @@ void showhide(Client *c)
 		showhide(c->snext);
 		XMoveWindow(dpy, c->win, WIDTH(c) * -2, c->y);
 	}
+}
+
+void run_autostart() {
+	execl("/bin/sh -c", autostart_script);
 }
 
 void spawn(const Arg *arg)
