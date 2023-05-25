@@ -1,3 +1,16 @@
+#define SYSTEM_TRAY_REQUEST_DOCK    0
+/* XEMBED messages */
+#define XEMBED_EMBEDDED_NOTIFY      0
+#define XEMBED_WINDOW_ACTIVATE      1
+#define XEMBED_FOCUS_IN             4
+#define XEMBED_MODALITY_ON         10
+#define XEMBED_MAPPED              (1 << 0)
+#define XEMBED_WINDOW_ACTIVATE      1
+#define XEMBED_WINDOW_DEACTIVATE    2
+#define VERSION_MAJOR               0
+#define VERSION_MINOR               0
+#define XEMBED_EMBEDDED_VERSION (VERSION_MAJOR << 16) | VERSION_MINOR
+
 /* enums */
 enum
 {
@@ -17,6 +30,10 @@ enum
   NetWMName,
   NetWMState,
   NetWMCheck,
+  NetSystemTray, 
+  NetSystemTrayOP, 
+  NetSystemTrayOrientation, 
+  NetSystemTrayOrientationHorz,
   NetWMFullscreen,
   NetActiveWindow,
   NetWMWindowType,
@@ -42,7 +59,6 @@ enum
   ClkRootWin,
   ClkLast
 }; /* clicks */
-
 typedef union
 {
   int i;
@@ -77,6 +93,14 @@ struct Client
   Monitor *mon;
   Window win;
 };
+
+
+typedef struct Systray   Systray;
+struct Systray {
+	Window win;
+	Client *icons;
+};
+
 
 typedef struct
 {
@@ -114,6 +138,8 @@ struct Monitor
   const Layout *lt[2];
 };
 
+enum { Manager, Xembed, XembedInfo, XLast }; /* Xembed atoms */
+
 typedef struct
 {
   const char *class;
@@ -125,6 +151,7 @@ typedef struct
 } Rule;
 
 /* function declarations */
+static unsigned int getsystraywidth();
 static void applyrules(Client *c);
 static int applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact);
 static void arrange(Monitor *m);
@@ -171,14 +198,19 @@ static Client *nexttiled(Client *c);
 static void pop(Client *c);
 static void propertynotify(XEvent *e);
 static void quit(const Arg *arg);
+static unsigned int getsystraywidth();
 static Monitor *recttomon(int x, int y, int w, int h);
 static void resize(Client *c, int x, int y, int w, int h, int interact);
+static void removesystrayicon(Client *i);
+static void resizebarwin(Monitor *m);
+static void resizerequest(XEvent *e);
 static void resizeclient(Client *c, int x, int y, int w, int h);
 static void resizemouse(const Arg *arg);
 static void restack(Monitor *m);
 static void run(void);
 static void scan(void);
-static int sendevent(Client *c, Atom proto);
+static Monitor *systraytomon(Monitor *m);
+static int sendevent(Window w, Atom proto, int m, long d0, long d1, long d2, long d3, long d4);
 static void sendmon(Client *c, Monitor *m);
 static void setclientstate(Client *c, long state);
 static void setfocus(Client *c);
@@ -188,6 +220,9 @@ static void setmfact(const Arg *arg);
 static void setup(void);
 static void seturgent(Client *c, int urg);
 static void showhide(Client *c);
+static void updatesystray(void);
+static void updatesystrayicongeom(Client *i, int w, int h);
+static void updatesystrayiconstate(Client *i, XPropertyEvent *ev);
 static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
@@ -214,12 +249,14 @@ static void view(const Arg *arg);
 static Client *wintoclient(Window w);
 static Monitor *wintomon(Window w);
 static int xerror(Display *dpy, XErrorEvent *ee);
+static Client *wintosystrayicon(Window w);
 static int xerrordummy(Display *dpy, XErrorEvent *ee);
 static int xerrorstart(Display *dpy, XErrorEvent *ee);
 static void zoom(const Arg *arg);
 static void autostart_exec(void);
 
 /* variables */
+static Systray *systray = NULL;
 static const char broken[] = "broken";
 static char stext[256];
 static int screen;
@@ -242,8 +279,9 @@ static void (*handler[LASTEvent])(XEvent *) = {
     [MapRequest] = maprequest,
     [MotionNotify] = motionnotify,
     [PropertyNotify] = propertynotify,
+    [ResizeRequest] = resizerequest,
     [UnmapNotify] = unmapnotify};
-static Atom wmatom[WMLast], netatom[NetLast];
+static Atom wmatom[WMLast], netatom[NetLast], xatom[XLast];
 static int running = 1;
 static Cur *cursor[CurLast];
 static Clr **scheme;
